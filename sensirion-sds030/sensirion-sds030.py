@@ -8,6 +8,7 @@
 import logging
 from datetime import datetime, timedelta
 from serial import Serial, SerialException
+from time import sleep
 
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB0" # Serial port to use if no other specified
 DEFAULT_BAUD_RATE = 115200 # Serial baud rate to use if no other specified
@@ -28,7 +29,10 @@ CMD_READ_WRITE_AUTOCLEAN_INTERVAL = b'\x80' #Read/Write
 CMD_START_FAN_CLEANING = b'\x56' #Execute
 CMD_DEVICE_INFORMATION = b'\xD0' #Read
 CMD_RESET = b'\xD3' #Execute
-SUBCMD_START_MEASUREMENT= [0x01, 0x03]
+SUBCMD_START_MEASUREMENT_1= b'\x01'
+SUBCMD_START_MEASUREMENT_2= b'\x03'
+
+RX_DELAY_S = 0.02 
 
 class SensirionReading(object):
     """
@@ -145,16 +149,23 @@ class Sensirion(object):
                     self._verify(recv) # verify the checksum
                     return HoneywellReading(recv) # convert to reading object
             #If the character isn't what we are expecting loop until timeout
-        raise HoneywellException("No message recieved")l
+        raise SensirionException("No message recieved")l
 
     def sensirion_start_measurement(self):
         
-        _sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,[SUBCMD_START_MEASUREMENT_1,SUBCMD_START_MEASUREMENT_2])
+        _sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,SUBCMD_START_MEASUREMENT_1+SUBCMD_START_MEASUREMENT_2)
 
     def sensirion_stop_measurement(self):
         
         _sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT,[])
 
+    def sensirion_read_measurement(self):
+
+        _sensirion_tx(CMD_ADDR, CMD_READ_MEASUREMENT)
+        sleep(RX_DELAY_S)
+        recv=_sensirion_rx()
+
+        return SensirionReading(recv)
 
     def _sensirion_tx(self, addr, cmd, data):
         # Build the message to send to the sensor.
@@ -162,15 +173,29 @@ class Sensirion(object):
         # cmd = b'\x01'
         # data = [b'\x01',b\'x08',b'\xae', ....]
 
-        checksum = self._calculate_checksum(addr+cmd, data) # the checksum has to be calculated before the byte_stuffing
+        checksum = self._calculate_checksum(addr+cmd+bytes([len(data)], data) # the checksum has to be calculated before the byte_stuffing
         message = MSG_START_STOP
-        message+= addr
-        message+= CMD_START_MEASUREMENT
-        message+= bytes([len(data)]) # Length
-        message+=data
-        message+= checksum
+        message+= self._sensirion_stuff_bytes(addr)
+        message+= self._sensirion_stuff_bytes(cmd)
+        message+= self._sensirion_stuff_bytes(bytes([len(data)])) # Length
+        message+=self._sensirion_stuff_bytes(data)
+        message+= self._sensirion_stuff_bytes(checksum)
         message+= MSG_START_STOP
         self.logger.debug("Message sent: {}".format(message))
         self.serial.write(message)
 
-    def _sensirion_stuff_bytes(self,data)
+    def _sensirion_stuff_bytes(self,data):
+         data_stuffed = b''
+        for b in data:
+            self.logger.debug("Bytes : {} --------".format(b))
+            if bytes([b]) == b'\x7E':
+                data_stuffed+=b'\x7D'+b'\x5E'
+            elif bytes([b]) == b'\x7D':
+                data_stuffed+=b'\x7D'+b'\x5D'
+            elif bytes([b]) == b'\x11':
+                data_stuffed+=b'\x7D'+b'\x31'
+            elif bytes([b]) == b'\x13':
+                data_stuffed+=b'\x7D'+b'\x33'
+            else:
+                    data_stuffed+=bytes([b])   
+        return data_stuffed
