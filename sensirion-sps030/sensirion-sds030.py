@@ -90,10 +90,9 @@ class Sensirion(object):
             self.logger.debug("Port Opened Successfully")
         except SerialException as exp:
             self.logger.error(str(exp))
-            raise HoneywellException(str(exp))
+            raise SensirionException(str(exp))
 
-        self.serial.write(b'\x68\x01\x01\x96') #Send command to start measurement
-        self.serial.write(b'\x68\x01\x40\x57') #Enable auto send
+        
 
     def set_log_level(self, log_level):
         """
@@ -124,7 +123,34 @@ class Sensirion(object):
         LSB = (ord(sumBytes) >> 0)
         # Invert it to get the checksum
         return bytes([255-LSB])
+    def _sensirion_tx(self):
 
+    	recv = b''
+        start = datetime.utcnow() #Start timer
+        if perform_flush:
+            self.serial.flush() #Flush any data in the buffer
+        while(
+                datetime.utcnow() <
+                (start + timedelta(seconds=self.read_timeout))):
+            inp = self.serial.read() # Read a character from the input
+            if inp == CMD: # check it matches
+                recv += inp # if it does add it to recieve string
+                inp = self.serial.read() # read the next character
+                if inp == MSG_CHAR_2: # check it's what's expected
+                    recv += inp # att it to the recieve string
+                    recv += self.serial.read(30) # read the remaining 30 bytes
+                    self._verify(recv) # verify the checksum
+                    return HoneywellReading(recv)
+    def sensirion_start_measurement(self):
+        
+        _sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,SUBCMD_START_MEASUREMENT_1+SUBCMD_START_MEASUREMENT_2)
+
+    def sensirion_stop_measurement(self):
+        
+        self._sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT,[])
+
+    def _sensirion_unstuff_byte(self,data):
+    	
     def read(self, perform_flush=True):
         """
             Reads a line from the serial port and return
@@ -140,28 +166,36 @@ class Sensirion(object):
                 datetime.utcnow() <
                 (start + timedelta(seconds=self.read_timeout))):
             inp = self.serial.read() # Read a character from the input
-            if inp == MSG_CHAR_1: # check it matches
+            if inp == MSG_START_STOP: # check it matches
                 recv += inp # if it does add it to recieve string
                 inp = self.serial.read() # read the next character
-                if inp == MSG_CHAR_2: # check it's what's expected
+                if inp == CMD_ADDR: # check it's what's expected
                     recv += inp # att it to the recieve string
-                    recv += self.serial.read(30) # read the remaining 30 bytes
+                    recv += self.serial.read()
+                    if inp == CMD_READ_MEASUREMENT:
+                    	recv += inp # att it to the recieve string
+                        inp += self.serial.read()
+                        if inp != b'\x00':
+                        	raise SensirionException(inp)
+                        else:
+                        	recv += inp # att it to the recieve string
+                            inp += self.serial.read()
+                            len(inp)+2
+                    else:
+                    	raise SensirionException("Wrong command")
+
+                     # read the remaining 30 bytes
                     self._verify(recv) # verify the checksum
+
+                    sensirion_shdlc_unstuff_byte
+
                     return HoneywellReading(recv) # convert to reading object
             #If the character isn't what we are expecting loop until timeout
-        raise SensirionException("No message recieved")l
-
-    def sensirion_start_measurement(self):
-        
-        _sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,SUBCMD_START_MEASUREMENT_1+SUBCMD_START_MEASUREMENT_2)
-
-    def sensirion_stop_measurement(self):
-        
-        _sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT,[])
+        rais
 
     def sensirion_read_measurement(self):
 
-        _sensirion_tx(CMD_ADDR, CMD_READ_MEASUREMENT)
+        self._sensirion_tx(CMD_ADDR, CMD_READ_MEASUREMENT)
         sleep(RX_DELAY_S)
         recv=_sensirion_rx()
 
@@ -173,7 +207,7 @@ class Sensirion(object):
         # cmd = b'\x01'
         # data = [b'\x01',b\'x08',b'\xae', ....]
 
-        checksum = self._calculate_checksum(addr+cmd+bytes([len(data)], data) # the checksum has to be calculated before the byte_stuffing
+        checksum = self._calculate_checksum(addr+cmd+bytes([len(data)]), data) # the checksum has to be calculated before the byte_stuffing
         message = MSG_START_STOP
         message+= self._sensirion_stuff_bytes(addr)
         message+= self._sensirion_stuff_bytes(cmd)
@@ -182,20 +216,26 @@ class Sensirion(object):
         message+= self._sensirion_stuff_bytes(checksum)
         message+= MSG_START_STOP
         self.logger.debug("Message sent: {}".format(message))
-        self.serial.write(message)
+        return self.serial.write(message)
 
     def _sensirion_stuff_bytes(self,data):
          data_stuffed = b''
+         data_len = 0
         for b in data:
             self.logger.debug("Bytes : {} --------".format(b))
             if bytes([b]) == b'\x7E':
                 data_stuffed+=b'\x7D'+b'\x5E'
+                data_len+=2
             elif bytes([b]) == b'\x7D':
                 data_stuffed+=b'\x7D'+b'\x5D'
+                data_len+=2
             elif bytes([b]) == b'\x11':
                 data_stuffed+=b'\x7D'+b'\x31'
+                data_len+=2
             elif bytes([b]) == b'\x13':
                 data_stuffed+=b'\x7D'+b'\x33'
+                data_len+=2
             else:
-                    data_stuffed+=bytes([b])   
+                data_stuffed+=bytes([b]) 
+                data_len+=1  
         return data_stuffed
