@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timedelta
 from serial import Serial, SerialException
 from time import sleep
+import struct
 
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB0" # Serial port to use if no other specified
 DEFAULT_BAUD_RATE = 115200 # Serial baud rate to use if no other specified
@@ -17,8 +18,6 @@ DEFAULT_READ_TIMEOUT = 1 #How long to sit looking for the correct character sequ
 
 DEFAULT_LOGGING_LEVEL = logging.WARN
 
-MSG_CHAR_1 = b'\x42' # First character to be recieved in a valid packet
-MSG_CHAR_2 = b'\x4d' # Second character to be recieved in a valid packet
 MSG_START_STOP = b'\x7E'
 
 CMD_ADDR = b'\x00'
@@ -44,14 +43,25 @@ class SensirionReading(object):
             an object containing the data
         """
         self.timestamp = datetime.utcnow()
-        self.pm10 = line[8] * 256 + line[9]
-        self.pm25 = line[6] * 256 + line[7]
+        self.pm1 = struct.unpack('f',line[6:9])
+        self.pm25 = struct.unpack('f',line[10:13])
+        self.pm4 = struct.unpack('f',line[14:17])
+        self.pm10 = struct.unpack('f',line[18:21])
+        self.n05 = struct.unpack('f',line[22:25])
+        self.n1 = struct.unpack('f',line[26:29])
+        self.n25 = struct.unpack('f',line[30:33])
+        self.n4 = struct.unpack('f',line[34:37])
+        self.n10 = struct.unpack('f',line[38:41])
+        self.tps = struct.unpack('f',line[42:43])
         
 
     def __str__(self):
         return (
-            "%s,%s,%s" %
-            (self.timestamp, self.pm10, self.pm25))
+            "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" %
+            (self.timestamp, self.pm1,self.pm25, 
+        self.pm4,self.pm10, self.n05,
+        self.n1,self.n25, self.n4, 
+        self.n10, self.tps))
 
 class SensirionException(Exception):
     """
@@ -100,21 +110,18 @@ class Sensirion(object):
         """
         self.logger.setLevel(log_level)
 
-    def _verify(self, recv):
+    def _sensirion_verify(self, recv):
         """
             Uses the last 2 bytes of the data packet from the Honeywell sensor
             to verify that the data recived is correct
         """
-        calc = 0
-        ord_arr = []
-        for c in bytearray(recv[:-2]): #Add all the bytes together except the checksum bytes
-            calc += c
-            ord_arr.append(c)
-        self.logger.debug(str(ord_arr))
-        sent = (recv[-2] << 8) | recv[-1] # Combine the 2 bytes together
+        
+
+        calc = self._calculate_checksum(recv[1]+recv[2]+recv[3]+recv[4],recv[5:-2])
+        sent = recv[-2]
         if sent != calc:
             self.logger.error("Checksum failure %d != %d", sent, calc)
-            raise HPMAException("Checksum failure")
+            raise SensirionException("Checksum failure")
 
     def _calculate_checksum(self, header, data):
         # Sum all the bytes between MSG_START_STOP (included) and the Checksum
@@ -123,42 +130,45 @@ class Sensirion(object):
         LSB = (ord(sumBytes) >> 0)
         # Invert it to get the checksum
         return bytes([255-LSB])
-    def _sensirion_tx(self):
 
-    	recv = b''
-        start = datetime.utcnow() #Start timer
-        if perform_flush:
-            self.serial.flush() #Flush any data in the buffer
-        while(
-                datetime.utcnow() <
-                (start + timedelta(seconds=self.read_timeout))):
-            inp = self.serial.read() # Read a character from the input
-            if inp == CMD: # check it matches
-                recv += inp # if it does add it to recieve string
-                inp = self.serial.read() # read the next character
-                if inp == MSG_CHAR_2: # check it's what's expected
-                    recv += inp # att it to the recieve string
-                    recv += self.serial.read(30) # read the remaining 30 bytes
-                    self._verify(recv) # verify the checksum
-                    return HoneywellReading(recv)
+
+
     def sensirion_start_measurement(self):
         
-        _sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,SUBCMD_START_MEASUREMENT_1+SUBCMD_START_MEASUREMENT_2)
+        self._sensirion_tx(CMD_ADDR, CMD_START_MEASUREMENT,SUBCMD_START_MEASUREMENT_1+SUBCMD_START_MEASUREMENT_2)
 
     def sensirion_stop_measurement(self):
         
         self._sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT,[])
 
-    def _sensirion_unstuff_byte(self,data):
-    	
-    def read(self, perform_flush=True):
+    def _sensirion_unstuff_bytes(self,data):
+    	data_unstuffed = b''
+        i=0
+        while(i<len(data)):
+            if bytes([data[i]]) == b'\x7D':
+                if bytes([data[i+1]]) == b'\x5e':
+                    data_unstuffed+=b'\x7e'
+                    i+=2
+                elif bytes([b]) == b'\x5d':
+                    data_unstuffed+=b'\x7d'
+                    i+=2
+                elif bytes([b]) == b'\x31':
+                    data_unstuffed+=b'\x11'
+                    i+=2
+                elif bytes([b]) == b'\x33':
+                    data_unstuffed+=b'\x13'
+                    i+=2
+            else:
+                data_unstuffed+=bytes([b])
+                i+=1
+        return data_unstuffed
+
+    def _sensirion_rx(self, addr, cmd,perform_flush=True):
         """
-            Reads a line from the serial port and return
-            if perform_flush is set to true it will flush the serial buffer
-            before performing the read, otherwise, it'll just read the first
-            item in the buffer
+            
         """
         recv = b''
+        complete_message = 0 
         start = datetime.utcnow() #Start timer
         if perform_flush:
             self.serial.flush() #Flush any data in the buffer
@@ -169,37 +179,51 @@ class Sensirion(object):
             if inp == MSG_START_STOP: # check it matches
                 recv += inp # if it does add it to recieve string
                 inp = self.serial.read() # read the next character
-                if inp == CMD_ADDR: # check it's what's expected
-                    recv += inp # att it to the recieve string
+                if inp == addr: 
+                    recv += inp 
                     recv += self.serial.read()
-                    if inp == CMD_READ_MEASUREMENT:
-                    	recv += inp # att it to the recieve string
+                    if inp == cmd:
+                    	recv += inp 
                         inp += self.serial.read()
                         if inp != b'\x00':
+                            self.logger.error("State error {}".format(inp))
                         	raise SensirionException(inp)
                         else:
-                        	recv += inp # att it to the recieve string
+                        	recv += inp     
                             inp += self.serial.read()
-                            len(inp)+2
+                            while(inp!=MSG_START_STOP): #read the remaining byte until it reaches the end byte
+                                recv+=inp
+                                inp += self.serial.read()
+                            return recv    
                     else:
+                        self.logger.error("Wrong command received {}, was expecting {}".format(inp,cmd))
                     	raise SensirionException("Wrong command")
 
-                     # read the remaining 30 bytes
-                    self._verify(recv) # verify the checksum
-
-                    sensirion_shdlc_unstuff_byte
-
-                    return HoneywellReading(recv) # convert to reading object
-            #If the character isn't what we are expecting loop until timeout
-        rais
+        raise SensirionException("Message incomplete")
+        
+    def _sensirion_check_length_unstuffed(self,data):
+        """
+        Verify that the length of the data unstuffed corresponds to the length sent by the sensor
+        """
+        data_length = data[4]
+        if data_length == len(data[5:-2]):
+            return True
+        else:
+            self.logger.error("Wrong data lenght {}, was expecting {}".format(len(data[5:-2]),data_length))
+            raise SensirionException("Wrong data length")
 
     def sensirion_read_measurement(self):
 
         self._sensirion_tx(CMD_ADDR, CMD_READ_MEASUREMENT)
         sleep(RX_DELAY_S)
-        recv=_sensirion_rx()
+        recv=self._sensirion_rx(CMD_ADDR, CMD_READ_MEASUREMENT)
 
-        return SensirionReading(recv)
+
+        recv_unstuffed = self._sensirion_shdlc_unstuff_bytes(recv)
+        self._sensirion_check_length_unstuffed(recv_unstuffed)
+        self._sensirion_verify(recv_unstuffed) # verify the checksum
+        return SensirionReading(recv_unstuffed)
+
 
     def _sensirion_tx(self, addr, cmd, data):
         # Build the message to send to the sensor.
