@@ -1,1 +1,1 @@
-from .sensirion_sps030 import SensironReading, Sensiron, SensironException
+from .sensirion_sps030 import SensirionReading, Sensirion, SensirionException
