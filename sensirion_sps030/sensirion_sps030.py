@@ -264,16 +264,16 @@ def _sensirion_unstuff_bytes(data):
             if bytes([data[i + 1]]) == b'\x5e':
                 data_unstuffed += b'\x7e'
                 i += 2
-            elif bytes([i]) == b'\x5d':
+            elif bytes(data[i]) == b'\x5d':
                 data_unstuffed += b'\x7d'
                 i += 2
-            elif bytes([i]) == b'\x31':
+            elif bytes(data[i]) == b'\x31':
                 data_unstuffed += b'\x11'
                 i += 2
-            elif bytes([i]) == b'\x33':
+            elif bytes(data[i]) == b'\x33':
                 data_unstuffed += b'\x13'
                 i += 2
         else:
-            data_unstuffed += bytes([i])
+            data_unstuffed += bytes(data[i])
             i += 1
     return data_unstuffed
