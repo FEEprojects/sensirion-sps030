@@ -42,7 +42,7 @@ class SensirionReading(object):
             Takes a line from the Sensirion serial port and converts it into
             an object containing the data
         """
-        self.timestamp = datetime.utcnow() 
+        self.timestamp = datetime.utcnow()
         self.pm1 = struct.unpack('>f', line[5:9])[0]
         self.pm25 = struct.unpack('>f', line[9:13])[0]
         self.pm4 = struct.unpack('>f', line[13:17])[0]
@@ -114,7 +114,9 @@ class Sensirion(object):
             Uses the last 2 bytes of the data packet from the Honeywell sensor
             to verify that the data recived is correct
         """
-        calc = self._calculate_checksum(bytes([recv[1]])+  bytes([recv[2]])+ bytes([recv[3]])+ bytes([recv[4]]), recv[5:-2])
+        calc = self._calculate_checksum(
+            bytes([recv[1]]) +  bytes([recv[2]]) + bytes([recv[3]]) + bytes([recv[4]]),
+            recv[5:-2])
         self.logger.debug(type(calc))
         sent = recv[-2]
         self.logger.debug(type(bytes([sent])))
@@ -130,7 +132,8 @@ class Sensirion(object):
             CMD_ADDR, CMD_START_MEASUREMENT,
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
         sleep(RX_DELAY_S)
-        self._sensirion_rx(CMD_ADDR, CMD_START_MEASUREMENT,
+        self._sensirion_rx(
+            CMD_ADDR, CMD_START_MEASUREMENT,
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
 
 
@@ -142,7 +145,6 @@ class Sensirion(object):
         self._sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
         sleep(RX_DELAY_S)
         self._sensirion_rx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
-    
 
     def _sensirion_rx(self, addr, cmd, perform_flush=True):
         """
@@ -182,36 +184,36 @@ class Sensirion(object):
                         else:
                             recv += inp
                             self.logger.debug(
-                                "Message : 0x%02x --------", 
+                                "Message : 0x%02x --------",
                                 int.from_bytes(recv, byteorder="big"))
                             inp = self.serial.read()
                             while inp != MSG_START_STOP: #read remaining data until the end byte
                                 recv += inp
                                 self.logger.debug(
-                                    "Message : 0x%02x --------", 
+                                    "Message : 0x%02x --------",
                                     int.from_bytes(recv, byteorder="big"))
                                 inp = self.serial.read()
                                 self.logger.debug("Bytes : 0x%02x --------", ord(inp))
-                            recv+=inp
+                            recv += inp
                             self.logger.debug(
-                                "Message received : 0x%02x --------", 
+                                "Message received : 0x%02x --------",
                                 int.from_bytes(recv, byteorder="big"))
-                            
+
                             return recv
                     else:
                         self.logger.error(
-                            "Wrong command received 0x%02x, was expecting 0x%02x", 
+                            "Wrong command received 0x%02x, was expecting 0x%02x",
                             ord(inp), ord(cmd))
                         self.logger.debug(
                             "Message received 0x%02x", int.from_bytes(recv, byteorder="big"))
                         raise SensirionException("Wrong command")
                 else:
                     self.logger.error(
-                            "Wrong address received 0x%02x, was expecting 0x%02x", 
-                            ord(inp), ord(addr))
+                        "Wrong address received 0x%02x, was expecting 0x%02x",
+                        ord(inp), ord(addr))
                     self.logger.debug(
-                            "Message received 0x%02x", 
-                            int.from_bytes(recv, byteorder="big"))
+                        "Message received 0x%02x",
+                        int.from_bytes(recv, byteorder="big"))
                     raise SensirionException("Wrong address")
 
         raise SensirionException("Message incomplete")
@@ -239,7 +241,9 @@ class Sensirion(object):
         recv_unstuffed = self._sensirion_unstuff_bytes(recv)
         self._sensirion_check_length(recv_unstuffed)
         self._sensirion_verify(recv_unstuffed) # verify the checksum
-        self.logger.debug("Verified message : 0x%02x --------", int.from_bytes(recv_unstuffed, byteorder="big"))
+        self.logger.debug(
+            "Verified message : 0x%02x --------",
+            int.from_bytes(recv_unstuffed, byteorder="big"))
         self.logger.debug(type(recv_unstuffed))
         return SensirionReading(recv_unstuffed)
 
@@ -315,7 +319,9 @@ class Sensirion(object):
             else:
                 data_unstuffed += bytes([data[i]])
                 i += 1
-        self.logger.debug("Message unstuffed: 0x%02x --------", int.from_bytes(data_unstuffed, byteorder="big"))
+        self.logger.debug(
+            "Message unstuffed: 0x%02x --------",
+            int.from_bytes(data_unstuffed, byteorder="big"))
         return data_unstuffed
 
 
