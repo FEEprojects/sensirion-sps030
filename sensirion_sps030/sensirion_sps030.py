@@ -146,28 +146,33 @@ class Sensirion(object):
                 datetime.utcnow() <
                 (start + timedelta(seconds=self.read_timeout))):
             inp = self.serial.read() # Read a character from the input
+            self.logger.debug("Start byte 0x%02x",ord(inp))
             if inp == MSG_START_STOP: # check it matches
                 recv += inp # if it does add it to recieve string
                 inp = self.serial.read() # read the next character
+                self.logger.debug("Addr byte 0x%02x",ord(inp))
                 if inp == addr:
                     recv += inp
-                    recv += self.serial.read()
+                    inp = self.serial.read()
+                    self.logger.debug("Cmd byte 0x%02x",ord(inp))
                     if inp == cmd:
                         recv += inp
-                        inp += self.serial.read()
+                        inp = self.serial.read()
+                        self.logger.debug("Error state byte 0x%02x",ord(inp))
                         if inp != b'\x00':
-                            self.logger.error("State error %s", str(inp))
+                            self.logger.error("State error 0x%02x", ord(inp))
                             raise SensirionException(inp)
                         else:
                             recv += inp
-                            inp += self.serial.read()
+                            inp = self.serial.read()
                             while inp != MSG_START_STOP: #read remaining data until the end byte
                                 recv += inp
-                                inp += self.serial.read()
+                                inp = self.serial.read()
                             return recv
                     else:
                         self.logger.error(
-                            "Wrong command received 0x%02x, was expecting 0x%0x", inp, cmd)
+                            "Wrong command received 0x%02x, was expecting 0x%02x", ord(inp), ord(cmd))
+                        self.logger.debug("Message received 0x%02x", int.from_bytes(recv,byteorder="big"))
                         raise SensirionException("Wrong command")
 
         raise SensirionException("Message incomplete")
