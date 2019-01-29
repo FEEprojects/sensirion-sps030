@@ -18,7 +18,7 @@ DEFAULT_READ_TIMEOUT = 1 #How long to sit looking for the correct character sequ
 
 DEFAULT_LOGGING_LEVEL = logging.WARN
 
-MSG_START_STOP = b'\x7E'
+MSG_START_STOP = b'\x7e'
 
 CMD_ADDR = b'\x00'
 CMD_START_MEASUREMENT = b'\x00' #Execute
@@ -26,8 +26,8 @@ CMD_STOP_MEASUREMENT = b'\x01' #Execute
 CMD_READ_MEASUREMENT = b'\x03' #Read
 CMD_READ_WRITE_AUTOCLEAN_INTERVAL = b'\x80' #Read/Write
 CMD_START_FAN_CLEANING = b'\x56' #Execute
-CMD_DEVICE_INFORMATION = b'\xD0' #Read
-CMD_RESET = b'\xD3' #Execute
+CMD_DEVICE_INFORMATION = b'\xd0' #Read
+CMD_RESET = b'\xd3' #Execute
 SUBCMD_START_MEASUREMENT_1 = b'\x01'
 SUBCMD_START_MEASUREMENT_2 = b'\x03'
 
@@ -42,17 +42,17 @@ class SensirionReading(object):
             Takes a line from the Sensirion serial port and converts it into
             an object containing the data
         """
-        self.timestamp = datetime.utcnow()
-        self.pm1 = struct.unpack('f', line[6:9])
-        self.pm25 = struct.unpack('f', line[10:13])
-        self.pm4 = struct.unpack('f', line[14:17])
-        self.pm10 = struct.unpack('f', line[18:21])
-        self.n05 = struct.unpack('f', line[22:25])
-        self.n1 = struct.unpack('f', line[26:29])
-        self.n25 = struct.unpack('f', line[30:33])
-        self.n4 = struct.unpack('f', line[34:37])
-        self.n10 = struct.unpack('f', line[38:41])
-        self.tps = struct.unpack('f', line[42:43])
+        self.timestamp = datetime.utcnow() 
+        self.pm1 = struct.unpack('>f', line[5:9])[0]
+        self.pm25 = struct.unpack('>f', line[9:13])[0]
+        self.pm4 = struct.unpack('>f', line[13:17])[0]
+        self.pm10 = struct.unpack('>f', line[17:21])[0]
+        self.n05 = struct.unpack('>f', line[21:25])[0]
+        self.n1 = struct.unpack('>f', line[25:29])[0]
+        self.n25 = struct.unpack('>f', line[29:33])[0]
+        self.n4 = struct.unpack('>f', line[33:37])[0]
+        self.n10 = struct.unpack('>f', line[37:41])[0]
+        self.tps = struct.unpack('>f', line[41:45])[0]
 
 
     def __str__(self):
@@ -114,10 +114,12 @@ class Sensirion(object):
             Uses the last 2 bytes of the data packet from the Honeywell sensor
             to verify that the data recived is correct
         """
-        calc = _calculate_checksum(recv[1] + recv[2] + recv[3] + recv[4], recv[5:-2])
+        calc = self._calculate_checksum(bytes([recv[1]])+  bytes([recv[2]])+ bytes([recv[3]])+ bytes([recv[4]]), recv[5:-2])
+        self.logger.debug(type(calc))
         sent = recv[-2]
-        if sent != calc:
-            self.logger.error("Checksum failure %d != %d", sent, calc)
+        self.logger.debug(type(bytes([sent])))
+        if bytes([sent]) != calc:
+            self.logger.error("Checksum failure 0x%02x != 0x%02x", sent, calc)
             raise SensirionException("Checksum failure")
 
     def sensirion_start_measurement(self):
@@ -127,12 +129,20 @@ class Sensirion(object):
         self._sensirion_tx(
             CMD_ADDR, CMD_START_MEASUREMENT,
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
+        sleep(RX_DELAY_S)
+        self._sensirion_rx(CMD_ADDR, CMD_START_MEASUREMENT,
+            SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
+
+
 
     def sensirion_stop_measurement(self):
         """
             Send the command to stop the sensor reading data
         """
         self._sensirion_tx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+        sleep(RX_DELAY_S)
+        self._sensirion_rx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+    
 
     def _sensirion_rx(self, addr, cmd, perform_flush=True):
         """
@@ -146,34 +156,63 @@ class Sensirion(object):
                 datetime.utcnow() <
                 (start + timedelta(seconds=self.read_timeout))):
             inp = self.serial.read() # Read a character from the input
-            self.logger.debug("Start byte 0x%02x",ord(inp))
             if inp == MSG_START_STOP: # check it matches
                 recv += inp # if it does add it to recieve string
+                self.logger.debug(
+                    "Message : 0x%02x --------", int.from_bytes(recv, byteorder="big"))
                 inp = self.serial.read() # read the next character
-                self.logger.debug("Addr byte 0x%02x",ord(inp))
+                self.logger.debug("Addr byte 0x%02x", ord(inp))
                 if inp == addr:
                     recv += inp
+                    self.logger.debug(
+                        "Message : 0x%02x --------", int.from_bytes(recv, byteorder="big"))
                     inp = self.serial.read()
-                    self.logger.debug("Cmd byte 0x%02x",ord(inp))
+                    self.logger.debug("Cmd byte : 0x%02x --------", ord(inp))
                     if inp == cmd:
                         recv += inp
+                        self.logger.debug(
+                            "Message : 0x%02x --------", int.from_bytes(recv, byteorder="big"))
                         inp = self.serial.read()
-                        self.logger.debug("Error state byte 0x%02x",ord(inp))
+                        self.logger.debug("Error state byte : 0x%02x --------", ord(inp))
                         if inp != b'\x00':
-                            self.logger.error("State error 0x%02x", ord(inp))
-                            raise SensirionException(inp)
+                            self.logger.warning("State error : 0x%02x --------", ord(inp))
+                            while inp != MSG_START_STOP: #empty the cache of the sensor
+                                inp = self.serial.read()
+                            return False
                         else:
                             recv += inp
+                            self.logger.debug(
+                                "Message : 0x%02x --------", 
+                                int.from_bytes(recv, byteorder="big"))
                             inp = self.serial.read()
                             while inp != MSG_START_STOP: #read remaining data until the end byte
                                 recv += inp
+                                self.logger.debug(
+                                    "Message : 0x%02x --------", 
+                                    int.from_bytes(recv, byteorder="big"))
                                 inp = self.serial.read()
+                                self.logger.debug("Bytes : 0x%02x --------", ord(inp))
+                            recv+=inp
+                            self.logger.debug(
+                                "Message received : 0x%02x --------", 
+                                int.from_bytes(recv, byteorder="big"))
+                            
                             return recv
                     else:
                         self.logger.error(
-                            "Wrong command received 0x%02x, was expecting 0x%02x", ord(inp), ord(cmd))
-                        self.logger.debug("Message received 0x%02x", int.from_bytes(recv,byteorder="big"))
+                            "Wrong command received 0x%02x, was expecting 0x%02x", 
+                            ord(inp), ord(cmd))
+                        self.logger.debug(
+                            "Message received 0x%02x", int.from_bytes(recv, byteorder="big"))
                         raise SensirionException("Wrong command")
+                else:
+                    self.logger.error(
+                            "Wrong address received 0x%02x, was expecting 0x%02x", 
+                            ord(inp), ord(addr))
+                    self.logger.debug(
+                            "Message received 0x%02x", 
+                            int.from_bytes(recv, byteorder="big"))
+                    raise SensirionException("Wrong address")
 
         raise SensirionException("Message incomplete")
 
@@ -197,9 +236,11 @@ class Sensirion(object):
         self._sensirion_tx(CMD_ADDR, CMD_READ_MEASUREMENT)
         sleep(RX_DELAY_S)
         recv = self._sensirion_rx(CMD_ADDR, CMD_READ_MEASUREMENT)
-        recv_unstuffed = _sensirion_unstuff_bytes(recv)
+        recv_unstuffed = self._sensirion_unstuff_bytes(recv)
         self._sensirion_check_length(recv_unstuffed)
         self._sensirion_verify(recv_unstuffed) # verify the checksum
+        self.logger.debug("Verified message : 0x%02x --------", int.from_bytes(recv_unstuffed, byteorder="big"))
+        self.logger.debug(type(recv_unstuffed))
         return SensirionReading(recv_unstuffed)
 
 
@@ -210,7 +251,7 @@ class Sensirion(object):
             cmd = b'\x01'
             data = [b'\x01',b\'x08',b'\xae', ....]
         """
-        checksum = _calculate_checksum(
+        checksum = self._calculate_checksum(
             addr + cmd + bytes([len(data)]), data) #checksum calculated before byte_stuffing
         message = MSG_START_STOP
         message += self._sensirion_stuff_bytes(addr)
@@ -219,7 +260,7 @@ class Sensirion(object):
         message += self._sensirion_stuff_bytes(data)
         message += self._sensirion_stuff_bytes(checksum)
         message += MSG_START_STOP
-        self.logger.debug("Message sent: %s", str(message))
+        self.logger.debug("Message sent: 0x%02x --------", int.from_bytes(message, byteorder="big"))
         return self.serial.write(message)
 
     def _sensirion_stuff_bytes(self, data):
@@ -247,38 +288,49 @@ class Sensirion(object):
                 data_len += 1
         return data_stuffed
 
-def _calculate_checksum(header, data):
-    """
-        Sum all the bytes between MSG_START_STOP (included) and the Checksum
-    """
-    sum_bytes = bytes([sum(data) + sum(header)])
-    # Take the LSB
-    lsb = (ord(sum_bytes) >> 0)
-    # Invert it to get the checksum
-    return bytes([255 - lsb])
-
-
-def _sensirion_unstuff_bytes(data):
-    """
+    def _sensirion_unstuff_bytes(self, data):
+        """
         Reverse the data stuffing used on the serial protocol
-    """
-    data_unstuffed = b''
-    i = 0
-    while i < len(data):
-        if bytes([data[i]]) == b'\x7D':
-            if bytes([data[i + 1]]) == b'\x5e':
-                data_unstuffed += b'\x7e'
-                i += 2
-            elif bytes(data[i]) == b'\x5d':
-                data_unstuffed += b'\x7d'
-                i += 2
-            elif bytes(data[i]) == b'\x31':
-                data_unstuffed += b'\x11'
-                i += 2
-            elif bytes(data[i]) == b'\x33':
-                data_unstuffed += b'\x13'
-                i += 2
-        else:
-            data_unstuffed += bytes(data[i])
-            i += 1
-    return data_unstuffed
+        """
+        data_unstuffed = b''
+        i = 0
+        while i < len(data):
+            self.logger.debug("Lenght : %02x --------", len(data))
+            self.logger.debug("i : %02x --------", i)
+            self.logger.debug("Bytes : 0x%02x --------", data[i])
+            if bytes([data[i]]) == b'\x7d':
+                self.logger.debug("Bytes +1 : 0x%02x --------", data[i+1])
+                if bytes([data[i + 1]]) == b'\x5e':
+                    data_unstuffed += b'\x7e'
+                    i += 2
+                elif bytes([data[i + 1]]) == b'\x5d':
+                    data_unstuffed += b'\x7d'
+                    i += 2
+                elif bytes([data[i + 1]]) == b'\x31':
+                    data_unstuffed += b'\x11'
+                    i += 2
+                elif bytes([data[i + 1]]) == b'\x33':
+                    data_unstuffed += b'\x13'
+                    i += 2
+            else:
+                data_unstuffed += bytes([data[i]])
+                i += 1
+        self.logger.debug("Message unstuffed: 0x%02x --------", int.from_bytes(data_unstuffed, byteorder="big"))
+        return data_unstuffed
+
+
+    def _calculate_checksum(self, header, data):
+        """
+            Sum all the bytes between MSG_START_STOP (included) and the Checksum
+        """
+        self.logger.debug("Type header : %s", type(header))
+        self.logger.debug("Type data : %s", type(data))
+        sum_bytes = bytes([(sum(data) + sum(header))%256])
+        # Take the LSB
+        lsb = (ord(sum_bytes) >> 0)
+        # Invert it to get the checksum
+        self.logger.debug("Checksum : 0x%02x", ord(bytes([255 - lsb])))
+        return bytes([255 - lsb])
+
+
+    
