@@ -77,7 +77,8 @@ class Sensirion(object):
             self, port=DEFAULT_SERIAL_PORT, baud=DEFAULT_BAUD_RATE,
             serial_timeout=DEFAULT_SERIAL_TIMEOUT,
             read_timeout=DEFAULT_READ_TIMEOUT,
-            log_level=DEFAULT_LOGGING_LEVEL):
+            log_level=DEFAULT_LOGGING_LEVEL,
+            auto_start=True):
         """
             Setup the interface for the sensor
         """
@@ -101,7 +102,8 @@ class Sensirion(object):
         except SerialException as exp:
             self.logger.error(str(exp))
             raise SensirionException(str(exp))
-
+        if auto_start:
+            self.start_measurement()
 
     def set_log_level(self, log_level):
         """
@@ -230,6 +232,12 @@ class Sensirion(object):
             self.logger.error(
                 "Wrong data length %d, was expecting %d", len(data[5:-2]), data_length)
             raise SensirionException("Wrong data length")
+
+    def read(self):
+        """
+            Wrapper for read_measurement to make it consistent with the other drivers
+        """
+        return self.read_measurement()
 
     def read_measurement(self):
         """
