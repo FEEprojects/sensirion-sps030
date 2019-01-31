@@ -37,23 +37,40 @@ class SensirionReading(object):
     """
         Describes a single reading from the Sensirion sensor
     """
-    def __init__(self, line):
+    def __init__(self, line,logger):
         """
             Takes a line from the Sensirion serial port and converts it into
             an object containing the data
         """
+        self.logger = logger
+        if len(line) < 46:
+            self.logger.warning("Not complete data message")
+            self.timestamp = datetime.utcnow()
+            self.pm1 = ""
+            self.pm25 =""
+            self.pm4 = ""
+            self.pm10 = ""
+            self.n05 = ""
+            self.n1 = ""
+            self.n25 = ""
+            self.n4 = ""
+            self.n10 = ""
+            self.tps = ""
 
-        self.timestamp = datetime.utcnow()
-        self.pm1 = struct.unpack('>f', line[5:9])[0]
-        self.pm25 = struct.unpack('>f', line[9:13])[0]
-        self.pm4 = struct.unpack('>f', line[13:17])[0]
-        self.pm10 = struct.unpack('>f', line[17:21])[0]
-        self.n05 = struct.unpack('>f', line[21:25])[0]
-        self.n1 = struct.unpack('>f', line[25:29])[0]
-        self.n25 = struct.unpack('>f', line[29:33])[0]
-        self.n4 = struct.unpack('>f', line[33:37])[0]
-        self.n10 = struct.unpack('>f', line[37:41])[0]
-        self.tps = struct.unpack('>f', line[41:45])[0]
+        else:
+            self.timestamp = datetime.utcnow()
+            self.pm1 = struct.unpack('>f', line[5:9])[0]
+            self.pm25 = struct.unpack('>f', line[9:13])[0]
+            self.pm4 = struct.unpack('>f', line[13:17])[0]
+            self.pm10 = struct.unpack('>f', line[17:21])[0]
+            self.n05 = struct.unpack('>f', line[21:25])[0]
+            self.n1 = struct.unpack('>f', line[25:29])[0]
+            self.n25 = struct.unpack('>f', line[29:33])[0]
+            self.n4 = struct.unpack('>f', line[33:37])[0]
+            self.n10 = struct.unpack('>f', line[37:41])[0]
+            self.tps = struct.unpack('>f', line[41:45])[0]
+
+        
 
 
     def __str__(self):
@@ -254,8 +271,7 @@ class Sensirion(object):
             "Verified message : 0x%02x --------",
             int.from_bytes(recv_unstuffed, byteorder="big"))
         self.logger.debug(type(recv_unstuffed))
-        if recv_unstuffed==b'\x28'
-            return SensirionReading(recv_unstuffed)
+        return SensirionReading(recv_unstuffed,self.logger)
 
 
     def _tx(self, addr, cmd, data=[]):
