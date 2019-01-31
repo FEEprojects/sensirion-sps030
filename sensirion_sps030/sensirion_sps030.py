@@ -42,6 +42,7 @@ class SensirionReading(object):
             Takes a line from the Sensirion serial port and converts it into
             an object containing the data
         """
+
         self.timestamp = datetime.utcnow()
         self.pm1 = struct.unpack('>f', line[5:9])[0]
         self.pm25 = struct.unpack('>f', line[9:13])[0]
@@ -253,7 +254,8 @@ class Sensirion(object):
             "Verified message : 0x%02x --------",
             int.from_bytes(recv_unstuffed, byteorder="big"))
         self.logger.debug(type(recv_unstuffed))
-        return SensirionReading(recv_unstuffed)
+        if recv_unstuffed==b'\x28'
+            return SensirionReading(recv_unstuffed)
 
 
     def _tx(self, addr, cmd, data=[]):
