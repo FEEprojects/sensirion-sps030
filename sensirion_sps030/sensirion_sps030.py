@@ -42,6 +42,8 @@ class SensirionReading(object):
             Takes a line from the Sensirion serial port and converts it into
             an object containing the data
         """
+        if len(line) < 46:
+            raise SensirionException("Data too short to parse")
         self.timestamp = datetime.utcnow()
         self.pm1 = struct.unpack('>f', line[5:9])[0]
         self.pm25 = struct.unpack('>f', line[9:13])[0]
