@@ -17,7 +17,7 @@ DEFAULT_SERIAL_TIMEOUT = 2 # Serial timeout to use if not specified
 DEFAULT_READ_TIMEOUT = 1 #How long to sit looking for the correct character sequence.
 
 DEFAULT_LOGGING_LEVEL = logging.WARN
-
+DEFAULT_RETRY_COUNT = 3
 MSG_START_STOP = b'\x7e'
 
 CMD_ADDR = b'\x00'
@@ -56,7 +56,6 @@ class SensirionReading(object):
         self.n10 = struct.unpack('>f', line[37:41])[0]
         self.tps = struct.unpack('>f', line[41:45])[0]
 
-
     def __str__(self):
         return (
             "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s" %
@@ -80,7 +79,7 @@ class Sensirion(object):
             serial_timeout=DEFAULT_SERIAL_TIMEOUT,
             read_timeout=DEFAULT_READ_TIMEOUT,
             log_level=DEFAULT_LOGGING_LEVEL,
-            auto_start=True):
+            auto_start=True, retries=DEFAULT_RETRY_COUNT):
         """
             Setup the interface for the sensor
         """
@@ -96,6 +95,8 @@ class Sensirion(object):
         self.logger.info("Serial Timeout: %s", self.serial_timeout)
         self.read_timeout = read_timeout
         self.logger.info("Read Timeout: %s", self.read_timeout)
+        self.retries = retries
+        self.logger.info("Retries: %d", self.retries)
         try:
             self.serial = Serial(
                 port=self.port, baudrate=self.baud,
@@ -245,18 +246,26 @@ class Sensirion(object):
         """
             Read a measurement from the device
         """
-        self._tx(CMD_ADDR, CMD_READ_MEASUREMENT)
-        sleep(RX_DELAY_S)
-        recv = self._rx(CMD_ADDR, CMD_READ_MEASUREMENT)
-        recv_unstuffed = self._unstuff_bytes(recv)
-        self._check_length(recv_unstuffed)
-        self._verify(recv_unstuffed) # verify the checksum
-        self.logger.debug(
-            "Verified message : 0x%02x --------",
-            int.from_bytes(recv_unstuffed, byteorder="big"))
-        self.logger.debug(type(recv_unstuffed))
-        return SensirionReading(recv_unstuffed)
-
+        count = 1
+        while count <= self.retries:
+            try:
+                self._tx(CMD_ADDR, CMD_READ_MEASUREMENT)
+                sleep(RX_DELAY_S)
+                recv = self._rx(CMD_ADDR, CMD_READ_MEASUREMENT)
+                recv_unstuffed = self._unstuff_bytes(recv)
+                self._check_length(recv_unstuffed)
+                self._verify(recv_unstuffed) # verify the checksum
+                self.logger.debug(
+                    "Verified message : 0x%02x --------",
+                    int.from_bytes(recv_unstuffed, byteorder="big"))
+                self.logger.debug(type(recv_unstuffed))
+                return SensirionReading(recv_unstuffed)
+            except SensirionException as exp:
+                self.logger.warning("Attempt %d/%d failed", count, self.retries)
+                self.logger.error(str(exp))
+                count += 1 # increment counter
+                if count == self.retries:
+                    raise exp
 
     def _tx(self, addr, cmd, data=[]):
         """
