@@ -18,6 +18,7 @@ DEFAULT_READ_TIMEOUT = 1 #How long to sit looking for the correct character sequ
 
 DEFAULT_LOGGING_LEVEL = logging.WARN
 DEFAULT_RETRY_COUNT = 3
+RETRY_SLEEP = 2
 MSG_START_STOP = b'\x7e'
 
 CMD_ADDR = b'\x00'
@@ -263,9 +264,10 @@ class Sensirion(object):
             except SensirionException as exp:
                 self.logger.warning("Attempt %d/%d failed", count, self.retries)
                 self.logger.error(str(exp))
-                count += 1 # increment counter
                 if count == self.retries:
                     raise exp
+                count += 1 # increment counter
+                sleep(RETRY_SLEEP)
 
     def _tx(self, addr, cmd, data=[]):
         """
