@@ -34,6 +34,8 @@ SUBCMD_START_MEASUREMENT_2 = b'\x03'
 
 RX_DELAY_S = 0.02 # How long to wait between sending the read command and getting data (seconds)
 
+MIN_SAMPLE_INTERVAL = 1
+
 class SensirionReading(object):
     """
         Describes a single reading from the Sensirion sensor
@@ -99,6 +101,7 @@ class Sensirion(object):
         self.retries = retries
         self.logger.info("Retries: %d", self.retries)
         self.measurement_running = False
+        self.last_measurement = None
         try:
             self.serial = Serial(
                 port=self.port, baudrate=self.baud,
@@ -144,6 +147,7 @@ class Sensirion(object):
             CMD_ADDR, CMD_START_MEASUREMENT,
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
         self.measurement_running = True
+        self.last_measurement = datetime.utcnow()
 
 
     def stop_measurement(self):
@@ -271,6 +275,11 @@ class Sensirion(object):
             self.logger.warning("Measurement not running, starting measurement")
             self.start_measurement()
             sleep(RETRY_SLEEP)
+        time_diff = datetime.utcnow() - self.last_measurement
+        if time_diff.total_seconds() < MIN_SAMPLE_INTERVAL:
+            self.logger.warning("Trying to read too frequently - forcing delay")
+            sleep(MIN_SAMPLE_INTERVAL - time_diff.total_seconds())
+            self.logger.debug("Sleep complete, now reading")
         count = 1
         while count <= self.retries:
             try:
@@ -284,6 +293,7 @@ class Sensirion(object):
                     "Verified message : 0x%02x --------",
                     int.from_bytes(recv_unstuffed, byteorder="big"))
                 self.logger.debug(type(recv_unstuffed))
+                self.last_measurement = datetime.utcnow()
                 return SensirionReading(recv_unstuffed)
             except SensirionException as exp:
                 self.logger.warning("Attempt %d/%d failed", count, self.retries)
