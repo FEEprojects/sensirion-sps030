@@ -160,27 +160,27 @@ class Sensirion(object):
         """
             Send the command to stop the sensor reading data
         """
-        self._tx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+        self._tx(CMD_ADDR, CMD_STOP_MEASUREMENT)
         sleep(RX_DELAY_S)
-        self._rx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+        self._rx(CMD_ADDR, CMD_STOP_MEASUREMENT)
         self.measurement_running = False
 
     def reset(self):
         """
             Send the reset command to the device
         """
-        self._tx(CMD_ADDR, CMD_RESET, [])
+        self._tx(CMD_ADDR, CMD_RESET)
         sleep(RX_DELAY_S)
-        self._rx(CMD_ADDR, CMD_RESET, [])
+        self._rx(CMD_ADDR, CMD_RESET)
         self.measurement_running = False
 
     def start_fan_clean(self):
         """
             Start a manual clean of the fan, takes 10s
         """
-        self._tx(CMD_ADDR, CMD_START_FAN_CLEANING, [])
+        self._tx(CMD_ADDR, CMD_START_FAN_CLEANING)
         sleep(RX_DELAY_S)
-        self._rx(CMD_ADDR, CMD_START_FAN_CLEANING, [])
+        self._rx(CMD_ADDR, CMD_START_FAN_CLEANING)
 
     def _rx(self, addr, cmd, perform_flush=True):
         """
@@ -339,7 +339,7 @@ class Sensirion(object):
                 count += 1 # increment counter
                 sleep(RETRY_SLEEP)
 
-    def _tx(self, addr, cmd, data=[]):
+    def _tx(self, addr, cmd, data=b''):
         """
             Build the message to send to the sensor.
             addr = b'\x01'
