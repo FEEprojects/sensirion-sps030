@@ -106,6 +106,7 @@ class Sensirion(object):
         except SerialException as exp:
             self.logger.error(str(exp))
             raise SensirionException(str(exp))
+        self.reset()
         if auto_start:
             self.start_measurement()
 
@@ -158,6 +159,14 @@ class Sensirion(object):
         self._tx(CMD_ADDR, CMD_RESET, [])
         sleep(RX_DELAY_S)
         self._rx(CMD_ADDR, CMD_RESET, [])
+
+    def start_fan_clean(self):
+        """
+            Start a manual clean of the fan, takes 10s
+        """
+        self._tx(CMD_ADDR, CMD_START_FAN_CLEANING, [])
+        sleep(RX_DELAY_S)
+        self._rx(CMD_ADDR, CMD_START_FAN_CLEANING, [])
 
     def _rx(self, addr, cmd, perform_flush=True):
         """
