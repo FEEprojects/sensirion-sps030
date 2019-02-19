@@ -40,6 +40,9 @@ SUBCMD_DEVICE_NAME = b'\x01'
 SUBCMD_ARTICLE_CODE = b'\x02'
 SUBCMD_SERIAL_NO = b'\x03'
 
+SUBCMD_READ_INTERVAL = b'\x00'
+SUBCMD_WRITE_INTERVAL = b'\x00'
+
 RX_DELAY_S = 0.02 # How long to wait between sending the read command and getting data (seconds)
 
 MIN_SAMPLE_INTERVAL = 1
@@ -342,6 +345,37 @@ class Sensirion(object):
                     raise exp
                 count += 1 # increment counter
                 sleep(RETRY_SLEEP)
+
+    def read_cleaning_interval(self):
+        """
+            Read the cleaning interval from the sensor
+        """
+        self._tx(CMD_ADDR, CMD_READ_WRITE_AUTOCLEAN_INTERVAL, SUBCMD_READ_INTERVAL)
+        sleep(RX_DELAY_S)
+        return int.from_bytes(
+            self._rx(CMD_ADDR, CMD_READ_WRITE_AUTOCLEAN_INTERVAL)[5:-2], byteorder='big')
+
+    def write_cleaning_interval(self, interval):
+        """
+            Sets the interval at which the fan should be cleaned
+            set to 0 to disable automatic cleaning
+        """
+        if interval == 0:
+            self.logger.warning("Disabling cleaning interval")
+        if interval > 0xFFFFFFFF:
+            self.logger.error("0x%x too large", interval)
+            raise SensirionException("Interval too large")
+        interval_bytes = int.to_bytes(interval, length=4, byteorder="big")
+        self._tx(
+            CMD_ADDR,
+            CMD_READ_WRITE_AUTOCLEAN_INTERVAL,
+            SUBCMD_READ_INTERVAL + interval_bytes)
+        sleep(RX_DELAY_S)
+        self._rx(
+            CMD_ADDR,
+            CMD_READ_WRITE_AUTOCLEAN_INTERVAL,
+            SUBCMD_READ_INTERVAL)
+
 
     def _tx(self, addr, cmd, data=b''):
         """
