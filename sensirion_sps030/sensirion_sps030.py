@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from time import sleep
 from serial import Serial, SerialException
 
+from .sensirion_error_codes import ERROR_CODE_NO_ERROR, lookup_error_code
+
 DEFAULT_SERIAL_PORT = "/dev/ttyUSB0" # Serial port to use if no other specified
 DEFAULT_BAUD_RATE = 115200 # Serial baud rate to use if no other specified
 DEFAULT_SERIAL_TIMEOUT = 2 # Serial timeout to use if not specified
@@ -212,11 +214,13 @@ class Sensirion(object):
                             "Message : 0x%02x --------", int.from_bytes(recv, byteorder="big"))
                         inp = self.serial.read()
                         self.logger.debug("Error state byte : 0x%02x --------", ord(inp))
-                        if inp != b'\x00':
-                            self.logger.warning("State error : 0x%02x --------", ord(inp))
+                        if inp != ERROR_CODE_NO_ERROR:
+                            self.logger.error("State error : 0x%02x --------", ord(inp))
+                            error_str = lookup_error_code(inp)
+                            self.logger.error(error_str)
                             while inp != MSG_START_STOP: #empty the cache of the sensor
                                 inp = self.serial.read()
-                            return False
+                            raise SensirionException(error_str)
                         else:
                             recv += inp
                             self.logger.debug(
