@@ -143,7 +143,6 @@ class Sensirion(object):
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
 
 
-
     def stop_measurement(self):
         """
             Send the command to stop the sensor reading data
@@ -151,6 +150,14 @@ class Sensirion(object):
         self._tx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
         sleep(RX_DELAY_S)
         self._rx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+
+    def reset(self):
+        """
+            Send the reset command to the device
+        """
+        self._tx(CMD_ADDR, CMD_RESET, [])
+        sleep(RX_DELAY_S)
+        self._rx(CMD_ADDR, CMD_RESET, [])
 
     def _rx(self, addr, cmd, perform_flush=True):
         """
