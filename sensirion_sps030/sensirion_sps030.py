@@ -29,8 +29,14 @@ CMD_READ_WRITE_AUTOCLEAN_INTERVAL = b'\x80' #Read/Write
 CMD_START_FAN_CLEANING = b'\x56' #Execute
 CMD_DEVICE_INFORMATION = b'\xd0' #Read
 CMD_RESET = b'\xd3' #Execute
+
+
 SUBCMD_START_MEASUREMENT_1 = b'\x01'
 SUBCMD_START_MEASUREMENT_2 = b'\x03'
+
+SUBCMD_DEVICE_NAME = b'\x01'
+SUBCMD_ARTICLE_CODE = b'\x02'
+SUBCMD_SERIAL_NO = b'\x03'
 
 RX_DELAY_S = 0.02 # How long to wait between sending the read command and getting data (seconds)
 
@@ -247,6 +253,36 @@ class Sensirion(object):
                     raise SensirionException("Wrong address")
 
         raise SensirionException("Message incomplete")
+
+
+    def get_product_name(self):
+        """
+            Get the product name string
+            In the docs this decodes to "Hello World!"
+        """
+        return self._device_info(SUBCMD_DEVICE_NAME).decode().rstrip('\0')
+
+    def get_article_code(self):
+        """
+            Get the article Code
+            In the docs this decodes to "x-xxxxxx-xx"
+        """
+        return self._device_info(SUBCMD_ARTICLE_CODE).decode().rstrip('\0')
+
+    def get_serial_no(self):
+        """
+            Get the serial number
+            In the docs this decodes to "00000000000000000000"
+        """
+        return self._device_info(SUBCMD_SERIAL_NO).decode().rstrip('\0')
+
+    def _device_info(self, subcmd):
+        """
+            Get information from the device
+        """
+        self._tx(CMD_ADDR, CMD_DEVICE_INFORMATION, subcmd)
+        sleep(RX_DELAY_S)
+        return self._rx(CMD_ADDR, CMD_DEVICE_INFORMATION, subcmd)[5:-2]
 
     def _check_length(self, data):
         """
