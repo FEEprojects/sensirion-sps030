@@ -98,6 +98,7 @@ class Sensirion(object):
         self.logger.info("Read Timeout: %s", self.read_timeout)
         self.retries = retries
         self.logger.info("Retries: %d", self.retries)
+        self.measurement_running = False
         try:
             self.serial = Serial(
                 port=self.port, baudrate=self.baud,
@@ -142,6 +143,7 @@ class Sensirion(object):
         self._rx(
             CMD_ADDR, CMD_START_MEASUREMENT,
             SUBCMD_START_MEASUREMENT_1 + SUBCMD_START_MEASUREMENT_2)
+        self.measurement_running = True
 
 
     def stop_measurement(self):
@@ -151,6 +153,7 @@ class Sensirion(object):
         self._tx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
         sleep(RX_DELAY_S)
         self._rx(CMD_ADDR, CMD_STOP_MEASUREMENT, [])
+        self.measurement_running = False
 
     def reset(self):
         """
@@ -159,6 +162,7 @@ class Sensirion(object):
         self._tx(CMD_ADDR, CMD_RESET, [])
         sleep(RX_DELAY_S)
         self._rx(CMD_ADDR, CMD_RESET, [])
+        self.measurement_running = False
 
     def start_fan_clean(self):
         """
@@ -263,6 +267,10 @@ class Sensirion(object):
         """
             Read a measurement from the device
         """
+        if not self.measurement_running:
+            self.logger.warning("Measurement not running, starting measurement")
+            self.start_measurement()
+            sleep(RETRY_SLEEP)
         count = 1
         while count <= self.retries:
             try:
