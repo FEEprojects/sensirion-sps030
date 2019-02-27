@@ -58,7 +58,7 @@ class SensirionReading(object):
         """
         if len(line) < 46:
             raise SensirionException("Data too short to parse")
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         self.pm1 = round(struct.unpack('>f', line[5:9])[0], 1)
         self.pm25 = round(struct.unpack('>f', line[9:13])[0], 1)
         self.pm4 = round(struct.unpack('>f', line[13:17])[0], 1)
