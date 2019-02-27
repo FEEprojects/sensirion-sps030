@@ -59,16 +59,16 @@ class SensirionReading(object):
         if len(line) < 46:
             raise SensirionException("Data too short to parse")
         self.timestamp = datetime.utcnow()
-        self.pm1 = struct.unpack('>f', line[5:9])[0]
-        self.pm25 = struct.unpack('>f', line[9:13])[0]
-        self.pm4 = struct.unpack('>f', line[13:17])[0]
-        self.pm10 = struct.unpack('>f', line[17:21])[0]
-        self.n05 = struct.unpack('>f', line[21:25])[0]
-        self.n1 = struct.unpack('>f', line[25:29])[0]
-        self.n25 = struct.unpack('>f', line[29:33])[0]
-        self.n4 = struct.unpack('>f', line[33:37])[0]
-        self.n10 = struct.unpack('>f', line[37:41])[0]
-        self.tps = struct.unpack('>f', line[41:45])[0]
+        self.pm1 = round(struct.unpack('>f', line[5:9])[0], 1)
+        self.pm25 = round(struct.unpack('>f', line[9:13])[0], 1)
+        self.pm4 = round(struct.unpack('>f', line[13:17])[0], 1)
+        self.pm10 = round(struct.unpack('>f', line[17:21])[0], 1)
+        self.n05 = round(struct.unpack('>f', line[21:25])[0], 1)
+        self.n1 = round(struct.unpack('>f', line[25:29])[0], 1)
+        self.n25 = round(struct.unpack('>f', line[29:33])[0], 1)
+        self.n4 = round(struct.unpack('>f', line[33:37])[0], 1)
+        self.n10 = round(struct.unpack('>f', line[37:41])[0], 1)
+        self.tps = round(struct.unpack('>f', line[41:45])[0], 1)
 
     def __str__(self):
         return (
