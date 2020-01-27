@@ -17,3 +17,10 @@ The test.py script can be used to test that the sensor is working. If the sensor
 ```
 
 `python3 test.py /dev/ttyUSB0 -v` will output additional debugging messages.
+
+
+The following persons have contributed to this library:
+ * Philip J. Basford
+ * Florentin M. J. Bulot
+ * Simon J. Cox
+ * Steven J. J. Ossont
