@@ -25,4 +25,5 @@ The following persons have contributed to this library:
  * Simon J. Cox
  * Steven J. J. Ossont
 
+For referencing, please use:  
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3543603.svg)](https://doi.org/10.5281/zenodo.3543603)
