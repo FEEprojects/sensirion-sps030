@@ -24,3 +24,5 @@ The following persons have contributed to this library:
  * Florentin M. J. Bulot
  * Simon J. Cox
  * Steven J. J. Ossont
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3543603.svg)](https://doi.org/10.5281/zenodo.3543603)
